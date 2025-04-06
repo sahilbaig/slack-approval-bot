@@ -103,13 +103,28 @@ app.post('/slack/events', async (req, res) => {
                 return res.status(200).send();
             }
 
-            const decisionText = action.action_id === 'approve_request'
-                ? '✅ Your request has been *approved*.'
-                : '❌ Your request has been *rejected*.';
+            const decision = action.action_id === 'approve_request' ? 'Approved ✅' : 'Rejected ❌';
 
+            // Notify requester
             await slackApp.client.chat.postMessage({
                 channel: requesterId,
-                text: decisionText,
+                text: `Your request has been *${decision}* by <@${approverId}>.`,
+            });
+
+            // Update original message
+            await slackApp.client.chat.update({
+                channel: payload.channel.id,
+                ts: payload.message.ts,
+                text: 'Approval request update',
+                blocks: [
+                    {
+                        type: 'section',
+                        text: {
+                            type: 'mrkdwn',
+                            text: `*Approval Request*\nFrom: <@${requesterId}>\n\n*Decision:* *${decision}* by <@${approverId}>`,
+                        },
+                    },
+                ],
             });
 
             return res.status(200).send();
