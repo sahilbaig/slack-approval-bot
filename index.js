@@ -28,27 +28,92 @@ app.get('/slack/members', async (req, res) => {
     res.json(members);
 });
 
-// ✅ Handle Slack events (mentions + modal submissions)
 app.post('/slack/events', async (req, res) => {
     if (req.body.challenge) {
         return res.status(200).send(req.body.challenge);
     }
 
-    // ✅ Handle modal submission
     if (req.body.payload) {
         const payload = JSON.parse(req.body.payload);
 
+        // ✅ Modal submission
         if (payload.type === 'view_submission' && payload.view.callback_id === 'approval_modal') {
-            const userInput = payload.view.state.values.feedback_block.feedback_input.value;
-            console.log("✅ User submitted:", userInput);
+            const approverId = payload.view.state.values.approver_block.approver_select.selected_option.value;
+            const messageText = payload.view.state.values.message_block.message_input.value;
+            const requesterId = payload.user.id;
+
+            console.log("✅ Selected Approver:", approverId);
+            console.log("✅ Approval Message:", messageText);
+
+            await slackApp.client.chat.postMessage({
+                channel: approverId,
+                text: 'Approval request received',
+                blocks: [
+                    {
+                        type: 'section',
+                        text: {
+                            type: 'mrkdwn',
+                            text: `*Approval Request*\nFrom: <@${requesterId}>\n\n*Message:*\n${messageText}`,
+                        },
+                    },
+                    {
+                        type: 'actions',
+                        block_id: 'approval_actions',
+                        elements: [
+                            {
+                                type: 'button',
+                                text: {
+                                    type: 'plain_text',
+                                    text: 'Approve',
+                                },
+                                style: 'primary',
+                                action_id: 'approve_request',
+                            },
+                            {
+                                type: 'button',
+                                text: {
+                                    type: 'plain_text',
+                                    text: 'Reject',
+                                },
+                                style: 'danger',
+                                action_id: 'reject_request',
+                            },
+                        ],
+                    },
+                ],
+                metadata: {
+                    event_type: 'approval_request',
+                    event_payload: {
+                        requesterId
+                    }
+                }
+            });
 
             return res.status(200).json({ response_action: "clear" });
         }
-    }
 
-    // ✅ Handle app_mention
-    if (req.body.event && req.body.event.type === 'app_mention') {
-        console.log("✅ App Mention:", req.body.event.text);
+        // ✅ Button click (Approve / Reject)
+        if (payload.type === 'block_actions') {
+            const action = payload.actions[0];
+            const approverId = payload.user.id;
+            const requesterId = payload.message.metadata?.event_payload?.requesterId;
+
+            if (!requesterId) {
+                console.error('❌ Missing requesterId in metadata');
+                return res.status(200).send();
+            }
+
+            const decisionText = action.action_id === 'approve_request'
+                ? '✅ Your request has been *approved*.'
+                : '❌ Your request has been *rejected*.';
+
+            await slackApp.client.chat.postMessage({
+                channel: requesterId,
+                text: decisionText,
+            });
+
+            return res.status(200).send();
+        }
     }
 
     res.status(200).send();
@@ -60,6 +125,8 @@ app.post('/slack/commands', async (req, res) => {
 
     if (command === '/approval-test') {
         try {
+            const members = await getSlackMembers();
+
             await slackApp.client.views.open({
                 trigger_id,
                 view: {
@@ -80,14 +147,34 @@ app.post('/slack/commands', async (req, res) => {
                     blocks: [
                         {
                             type: 'input',
-                            block_id: 'feedback_block',
+                            block_id: 'approver_block',
                             label: {
                                 type: 'plain_text',
-                                text: 'Your feedback',
+                                text: 'Select Approver',
+                            },
+                            element: {
+                                type: 'static_select',
+                                action_id: 'approver_select',
+                                options: members.map((m) => ({
+                                    text: {
+                                        type: 'plain_text',
+                                        text: m.name,
+                                    },
+                                    value: m.id,
+                                })),
+                            },
+                        },
+                        {
+                            type: 'input',
+                            block_id: 'message_block',
+                            label: {
+                                type: 'plain_text',
+                                text: 'Approval Message',
                             },
                             element: {
                                 type: 'plain_text_input',
-                                action_id: 'feedback_input',
+                                action_id: 'message_input',
+                                multiline: true,
                             },
                         },
                     ],

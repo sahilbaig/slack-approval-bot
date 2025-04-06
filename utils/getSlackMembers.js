@@ -18,18 +18,25 @@ const getSlackMembers = async () => {
         }
 
         // Filter out bots and deactivated users
-        return data.members
+        const members = data.members
             .filter(user => !user.is_bot && !user.deleted)
             .map(user => ({
                 id: user.id,
                 name: user.real_name || user.name
             }));
 
+        // Log names and IDs
+        console.log(" Slack Users:");
+        members.forEach(member => {
+            console.log(`${member.name}: ${member.id}`);
+        });
+
+        return members;
+
     } catch (error) {
         console.error("Error fetching Slack members:", error);
         return [];
     }
 };
-
 
 export default getSlackMembers;
