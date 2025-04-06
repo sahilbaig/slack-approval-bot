@@ -12,7 +12,6 @@ npm install
 
 ```
 2. **Clone & Setup**
-Create .env file with
 SLACK_CLIENT_ID=your_client_id
 SLACK_CLIENT_SECRET=your_client_secret
 SLACK_SIGNING_SECRET=your_signing_secret
