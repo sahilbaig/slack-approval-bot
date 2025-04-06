@@ -29,8 +29,10 @@ Slack Bolt SDK
 OAuth 2.0 flow
 Interactive Components
 
-Features: 
+Features
 Slash command integration
 Real-time approval workflow
 User notifications
 Secure token handling
+
+Currently running in local ngrok server . Will Change it to a AWS Lambda Soon. 
