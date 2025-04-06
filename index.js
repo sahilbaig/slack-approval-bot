@@ -22,12 +22,14 @@ const PORT = 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ Get Slack members
+// For Getting Slack Members
 app.get('/slack/members', async (req, res) => {
     const members = await getSlackMembers();
     res.json(members);
 });
 
+// Handling Events in Slack ->
+// Checking if Bot is mentioned
 app.post('/slack/events', async (req, res) => {
     if (req.body.challenge) {
         return res.status(200).send(req.body.challenge);
@@ -36,15 +38,15 @@ app.post('/slack/events', async (req, res) => {
     if (req.body.payload) {
         const payload = JSON.parse(req.body.payload);
 
-        // ✅ Modal submission
         if (payload.type === 'view_submission' && payload.view.callback_id === 'approval_modal') {
             const approverId = payload.view.state.values.approver_block.approver_select.selected_option.value;
             const messageText = payload.view.state.values.message_block.message_input.value;
             const requesterId = payload.user.id;
 
-            console.log("✅ Selected Approver:", approverId);
-            console.log("✅ Approval Message:", messageText);
+            console.log("Selected Approver:", approverId); // Debugging
+            console.log("Approval Message:", messageText); //Debugging
 
+            // Checking for approval Request
             await slackApp.client.chat.postMessage({
                 channel: approverId,
                 text: 'Approval request received',
@@ -92,26 +94,22 @@ app.post('/slack/events', async (req, res) => {
             return res.status(200).json({ response_action: "clear" });
         }
 
-        // ✅ Button click (Approve / Reject)
+        // Button click (Approve / Reject)
         if (payload.type === 'block_actions') {
             const action = payload.actions[0];
             const approverId = payload.user.id;
             const requesterId = payload.message.metadata?.event_payload?.requesterId;
 
-            if (!requesterId) {
-                console.error('❌ Missing requesterId in metadata');
-                return res.status(200).send();
-            }
 
-            const decision = action.action_id === 'approve_request' ? 'Approved ✅' : 'Rejected ❌';
+            const decision = action.action_id === 'approve_request' ? 'Approved ' : 'Rejected ';
 
-            // Notify requester
+            // Notify requester that approval is Rejected or Approved
             await slackApp.client.chat.postMessage({
                 channel: requesterId,
                 text: `Your request has been *${decision}* by <@${approverId}>.`,
             });
 
-            // Update original message
+            // Update original message -> Only request rejected or Accepted
             await slackApp.client.chat.update({
                 channel: payload.channel.id,
                 ts: payload.message.ts,
@@ -134,7 +132,7 @@ app.post('/slack/events', async (req, res) => {
     res.status(200).send();
 });
 
-// ✅ Slash command opens modal
+// Slash Command open a Modal with required Fields
 app.post('/slack/commands', async (req, res) => {
     const { command, trigger_id } = req.body;
 
@@ -143,6 +141,7 @@ app.post('/slack/commands', async (req, res) => {
             const members = await getSlackMembers();
 
             await slackApp.client.views.open({
+                // Modal
                 trigger_id,
                 view: {
                     type: 'modal',
@@ -198,7 +197,7 @@ app.post('/slack/commands', async (req, res) => {
 
             res.status(200).send();
         } catch (error) {
-            console.error('❌ Error opening modal:', error);
+            console.error('Error opening modal:', error);
             res.status(500).send('Failed to open modal');
         }
     } else {
@@ -206,11 +205,11 @@ app.post('/slack/commands', async (req, res) => {
     }
 });
 
-// ✅ Health check
+// Health check
 app.get('/', (req, res) => {
     res.send('Slack Bot is running');
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Server running at http://localhost:${PORT}`);
+    console.log(`Server running at http://localhost:${PORT}`);
 });
