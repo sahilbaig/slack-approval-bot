@@ -10,14 +10,14 @@ dotenv.config();
 const receiver = new ExpressReceiver({
     signingSecret: process.env.SLACK_SIGNING_SECRET,
 });
-// This is for recieving events from Slack
+// This is for receiving events from Slack
 
 const slackApp = new App({
     token: process.env.SLACK_BOT_TOKEN,
     receiver,
 });
 // This is the bot 
-// Reciever is set to our Custom Express Receiver
+// Receiver is set to our Custom Express Receiver
 
 const app = express();
 const PORT = 3000;
@@ -34,7 +34,7 @@ app.get('/slack/members', async (req, res) => {
 
 app.post('/slack/commands', async (req, res) => {
     const { command, trigger_id } = req.body;
-    //Triggger_id for openign a modal
+    // Trigger_id for opening a modal
     if (command === '/approval-test') {
         try {
             const members = await getSlackMembers();
@@ -96,7 +96,7 @@ app.post('/slack/commands', async (req, res) => {
                     ],
                 },
             });
-            // Need to send a response to Slack else it gets timedout
+            // Need to send a response to Slack else it gets timed out
             res.status(200).send();
         } catch (error) {
             console.error('Error opening modal:', error);
@@ -109,12 +109,11 @@ app.post('/slack/commands', async (req, res) => {
 
 // Handling Events in Slack
 app.post('/slack/events', async (req, res) => {
-    // This is one time event for testing if backend recieves data from slack
+    // This is one time event for testing if backend receives data from slack
     if (req.body.challenge) {
         return res.status(200).send(req.body.challenge);
     }
-
-    // Recieving Payload 
+    // Receiving Payload 
     if (req.body.payload) {
         const payload = JSON.parse(req.body.payload);
         // View submission -> Modal submission 
@@ -126,7 +125,7 @@ app.post('/slack/events', async (req, res) => {
             const requesterId = payload.user.id;
 
             console.log("Selected Approver:", approverId); // Debugging
-            console.log("Approval Message:", messageText); //Debugging
+            console.log("Approval Message:", messageText); // Debugging
 
             // Checking for approval Request
             await slackApp.client.chat.postMessage({
@@ -137,7 +136,7 @@ app.post('/slack/events', async (req, res) => {
                     {
                         type: 'section',
                         text: {
-                            type: 'mrkdwn', //Since I needed bold and mentions 
+                            type: 'mrkdwn', // Since I needed bold and mentions 
                             text: `*Approval Request*\nFrom: <@${requesterId}>\n\n*Message:*\n${messageText}`,
                         },
                     },
@@ -175,6 +174,8 @@ app.post('/slack/events', async (req, res) => {
                     }
                 }
             });
+
+
             // This is for closing the modal 
             return res.status(200).json({ response_action: "clear" });
         }
@@ -184,7 +185,6 @@ app.post('/slack/events', async (req, res) => {
             const action = payload.actions[0];
             const approverId = payload.user.id;
             const requesterId = payload.message.metadata?.event_payload?.requesterId;
-
 
             let decision = '';
             // Check which button is clicked
@@ -200,10 +200,10 @@ app.post('/slack/events', async (req, res) => {
                 text: `Your request has been *${decision}* by <@${approverId}>.`,
             });
 
-            //Update the Original Message in Approver DM
+            // Update the Original Message in Approver DM
             await slackApp.client.chat.update({
                 channel: payload.channel.id,
-                ts: payload.message.ts, //Required for editing
+                ts: payload.message.ts, // Required for editing
                 text: 'Approval request update',
                 blocks: [
                     {
@@ -222,8 +222,6 @@ app.post('/slack/events', async (req, res) => {
 
     res.status(200).send();
 });
-
-// Slash Command open a Modal with required Fields
 
 
 // Health check

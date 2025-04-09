@@ -14,7 +14,9 @@ const getSlackMembers = async () => {
 
         const data = await response.json();
 
+
         if (!data.ok) {
+
             console.error("Error fetching users:", data.error);
             return [];
         }
@@ -28,7 +30,6 @@ const getSlackMembers = async () => {
             }));
 
         // Log names and IDs
-        console.log(" Slack Users:");
         members.forEach(member => {
             console.log(`${member.name}: ${member.id}`);
         });
