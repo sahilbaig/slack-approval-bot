@@ -32,6 +32,81 @@ app.get('/slack/members', async (req, res) => {
     res.json(members);
 });
 
+app.post('/slack/commands', async (req, res) => {
+    const { command, trigger_id } = req.body;
+    //Triggger_id for openign a modal
+    if (command === '/approval-test') {
+        try {
+            const members = await getSlackMembers();
+
+            await slackApp.client.views.open({
+                // Modal
+                trigger_id,
+                view: {
+                    type: 'modal',
+                    callback_id: 'approval_modal',
+                    title: {
+                        type: 'plain_text',
+                        text: 'Approval Modal',
+                    },
+                    close: {
+                        type: 'plain_text',
+                        text: 'Close',
+                    },
+                    submit: {
+                        type: 'plain_text',
+                        text: 'Submit',
+                    },
+                    blocks: [
+                        // Actual data inside the modal
+                        {
+                            type: 'input',
+                            block_id: 'approver_block',
+                            label: {
+                                type: 'plain_text',
+                                text: 'Select Approver',
+                            },
+                            element: {
+                                type: 'static_select',
+                                // Can replace this with User_select -> No need to fetch users manually
+                                action_id: 'approver_select',
+                                options: members.map((m) => ({
+                                    text: {
+                                        type: 'plain_text',
+                                        text: m.name,
+                                    },
+                                    value: m.id,
+                                })),
+                            },
+                        },
+                        {
+                            type: 'input',
+                            // What message to send to approver
+                            block_id: 'message_block',
+                            label: {
+                                type: 'plain_text',
+                                text: 'Approval Message',
+                            },
+                            element: {
+                                type: 'plain_text_input',
+                                action_id: 'message_input',
+                                multiline: true,
+                            },
+                        },
+                    ],
+                },
+            });
+            // Need to send a response to Slack else it gets timedout
+            res.status(200).send();
+        } catch (error) {
+            console.error('Error opening modal:', error);
+            res.status(500).send('Failed to open modal');
+        }
+    } else {
+        res.send('Unknown command');
+    }
+});
+
 // Handling Events in Slack
 app.post('/slack/events', async (req, res) => {
     // This is one time event for testing if backend recieves data from slack
@@ -42,8 +117,10 @@ app.post('/slack/events', async (req, res) => {
     // Recieving Payload 
     if (req.body.payload) {
         const payload = JSON.parse(req.body.payload);
-
+        // View submission -> Modal submission 
+        // Callback_id -> Get Modal id which submitted data
         if (payload.type === 'view_submission' && payload.view.callback_id === 'approval_modal') {
+            // Approver block and Message block from modal -> Getting their values
             const approverId = payload.view.state.values.approver_block.approver_select.selected_option.value;
             const messageText = payload.view.state.values.message_block.message_input.value;
             const requesterId = payload.user.id;
@@ -53,6 +130,7 @@ app.post('/slack/events', async (req, res) => {
 
             // Checking for approval Request
             await slackApp.client.chat.postMessage({
+                // Sending Approval Request to Approver via ID 
                 channel: approverId,
                 text: 'Approval request received',
                 blocks: [
@@ -64,6 +142,7 @@ app.post('/slack/events', async (req, res) => {
                         },
                     },
                     {
+                        // Actions Buttons
                         type: 'actions',
                         block_id: 'approval_actions',
                         elements: [
@@ -145,80 +224,7 @@ app.post('/slack/events', async (req, res) => {
 });
 
 // Slash Command open a Modal with required Fields
-app.post('/slack/commands', async (req, res) => {
-    const { command, trigger_id } = req.body;
-    //Triggger_id for openign a modal
-    if (command === '/approval-test') {
-        try {
-            const members = await getSlackMembers();
 
-            await slackApp.client.views.open({
-                // Modal
-                trigger_id,
-                view: {
-                    type: 'modal',
-                    callback_id: 'approval_modal',
-                    title: {
-                        type: 'plain_text',
-                        text: 'Approval Modal',
-                    },
-                    close: {
-                        type: 'plain_text',
-                        text: 'Close',
-                    },
-                    submit: {
-                        type: 'plain_text',
-                        text: 'Submit',
-                    },
-                    blocks: [
-                        // Actual data inside the modal
-                        {
-                            type: 'input',
-                            block_id: 'approver_block',
-                            label: {
-                                type: 'plain_text',
-                                text: 'Select Approver',
-                            },
-                            element: {
-                                type: 'static_select',
-                                // Can replace this with User_select -> No need to fetch users manually
-                                action_id: 'approver_select',
-                                options: members.map((m) => ({
-                                    text: {
-                                        type: 'plain_text',
-                                        text: m.name,
-                                    },
-                                    value: m.id,
-                                })),
-                            },
-                        },
-                        {
-                            type: 'input',
-                            // What message to send to approver
-                            block_id: 'message_block',
-                            label: {
-                                type: 'plain_text',
-                                text: 'Approval Message',
-                            },
-                            element: {
-                                type: 'plain_text_input',
-                                action_id: 'message_input',
-                                multiline: true,
-                            },
-                        },
-                    ],
-                },
-            });
-
-            res.status(200).send();
-        } catch (error) {
-            console.error('Error opening modal:', error);
-            res.status(500).send('Failed to open modal');
-        }
-    } else {
-        res.send('Unknown command');
-    }
-});
 
 // Health check
 app.get('/', (req, res) => {
