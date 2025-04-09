@@ -10,11 +10,14 @@ dotenv.config();
 const receiver = new ExpressReceiver({
     signingSecret: process.env.SLACK_SIGNING_SECRET,
 });
+// This is for recieving events from Slack
 
 const slackApp = new App({
     token: process.env.SLACK_BOT_TOKEN,
     receiver,
 });
+// This is the bot 
+// Reciever is set to our Custom Express Receiver
 
 const app = express();
 const PORT = 3000;
@@ -23,18 +26,20 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // For Getting Slack Members
+// We use this to get list of members in dropdown to select approver
 app.get('/slack/members', async (req, res) => {
     const members = await getSlackMembers();
     res.json(members);
 });
 
-// Handling Events in Slack ->
-// Checking if Bot is mentioned
+// Handling Events in Slack
 app.post('/slack/events', async (req, res) => {
+    // This is one time event for testing if backend recieves data from slack
     if (req.body.challenge) {
         return res.status(200).send(req.body.challenge);
     }
 
+    // Recieving Payload 
     if (req.body.payload) {
         const payload = JSON.parse(req.body.payload);
 
@@ -54,7 +59,7 @@ app.post('/slack/events', async (req, res) => {
                     {
                         type: 'section',
                         text: {
-                            type: 'mrkdwn',
+                            type: 'mrkdwn', //Since I needed bold and mentions 
                             text: `*Approval Request*\nFrom: <@${requesterId}>\n\n*Message:*\n${messageText}`,
                         },
                     },
@@ -83,6 +88,7 @@ app.post('/slack/events', async (req, res) => {
                         ],
                     },
                 ],
+                // Sending Data from here containing requesterID
                 metadata: {
                     event_type: 'approval_request',
                     event_payload: {
@@ -90,7 +96,7 @@ app.post('/slack/events', async (req, res) => {
                     }
                 }
             });
-
+            // This is for closing the modal 
             return res.status(200).json({ response_action: "clear" });
         }
 
@@ -101,7 +107,13 @@ app.post('/slack/events', async (req, res) => {
             const requesterId = payload.message.metadata?.event_payload?.requesterId;
 
 
-            const decision = action.action_id === 'approve_request' ? 'Approved ' : 'Rejected ';
+            let decision = '';
+            // Check which button is clicked
+            if (action.action_id === 'approve_request') {
+                decision = 'Approved ';
+            } else {
+                decision = 'Rejected ';
+            }
 
             // Notify requester that approval is Rejected or Approved
             await slackApp.client.chat.postMessage({
@@ -109,10 +121,10 @@ app.post('/slack/events', async (req, res) => {
                 text: `Your request has been *${decision}* by <@${approverId}>.`,
             });
 
-            // Update original message -> Only request rejected or Accepted
+            //Update the Original Message in Approver DM
             await slackApp.client.chat.update({
                 channel: payload.channel.id,
-                ts: payload.message.ts,
+                ts: payload.message.ts, //Required for editing
                 text: 'Approval request update',
                 blocks: [
                     {
@@ -135,7 +147,7 @@ app.post('/slack/events', async (req, res) => {
 // Slash Command open a Modal with required Fields
 app.post('/slack/commands', async (req, res) => {
     const { command, trigger_id } = req.body;
-
+    //Triggger_id for openign a modal
     if (command === '/approval-test') {
         try {
             const members = await getSlackMembers();
@@ -159,6 +171,7 @@ app.post('/slack/commands', async (req, res) => {
                         text: 'Submit',
                     },
                     blocks: [
+                        // Actual data inside the modal
                         {
                             type: 'input',
                             block_id: 'approver_block',
@@ -168,6 +181,7 @@ app.post('/slack/commands', async (req, res) => {
                             },
                             element: {
                                 type: 'static_select',
+                                // Can replace this with User_select -> No need to fetch users manually
                                 action_id: 'approver_select',
                                 options: members.map((m) => ({
                                     text: {
@@ -180,6 +194,7 @@ app.post('/slack/commands', async (req, res) => {
                         },
                         {
                             type: 'input',
+                            // What message to send to approver
                             block_id: 'message_block',
                             label: {
                                 type: 'plain_text',

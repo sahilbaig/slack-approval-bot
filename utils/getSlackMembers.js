@@ -2,9 +2,11 @@ import fetch from 'node-fetch';
 
 const getSlackMembers = async () => {
     try {
+        //Fetch the list of users from Slack API
         const response = await fetch("https://slack.com/api/users.list", {
             method: "GET",
             headers: {
+                // This is bot token for authentication
                 "Authorization": `Bearer ${process.env.SLACK_BOT_TOKEN}`,
                 "Content-Type": "application/json"
             }
